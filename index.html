@@ -6,199 +6,290 @@
 <title>Daftar Anime Favorit</title>
 
 <style>
+* { box-sizing: border-box; font-family: system-ui, sans-serif; }
+
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
   background: #0f172a;
-  color: #fff;
+  color: white;
 }
 
-.container {
-  max-width: 1100px;
-  margin: auto;
-  padding: 20px;
-}
-
-h1 {
+header {
+  padding: 16px;
   text-align: center;
-}
-
-.form {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.form input, .form button {
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-}
-
-.form input {
-  width: 100%;
-}
-
-.form button {
-  background: #22c55e;
-  color: #000;
+  font-size: 22px;
   font-weight: bold;
-  cursor: pointer;
 }
 
-.actions {
+.controls {
   display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
+  gap: 8px;
+  padding: 16px;
   flex-wrap: wrap;
 }
 
-.actions button {
+.controls input {
   flex: 1;
+  min-width: 200px;
   padding: 12px;
   border-radius: 8px;
   border: none;
-  font-weight: bold;
+}
+
+.controls button, .controls select {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: none;
   cursor: pointer;
+  font-weight: bold;
 }
 
-.export {
-  background: #38bdf8;
-}
-
-.import {
-  background: #fbbf24;
-}
+.add { background: #22c55e; }
+.import { background: #facc15; }
+.share { background: #38bdf8; }
+.deleteAll { background: #b91c1c; color: white; }
+.view { background: #334155; color: white; }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px;
 }
 
+/* CARD MODE */
 .card {
   background: #1e293b;
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
-  box-shadow: 0 10px 20px rgba(0,0,0,.3);
+  position: relative;
 }
 
 .card img {
   width: 100%;
-  height: 280px;
+  height: 360px;
   object-fit: cover;
 }
 
-.card .info {
-  padding: 10px;
+.number {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: black;
+  padding: 6px 10px;
+  border-radius: 10px;
 }
 
-.rating {
-  color: #facc15;
+.delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #ef4444;
+  border: none;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.content { padding: 12px; }
+
+.genre { font-size: 13px; color: #cbd5f5; }
+.rating { color: #facc15; font-weight: bold; }
+.synopsis { font-size: 13px; max-height: 100px; overflow: auto; }
+
+/* LIST MODE */
+.list {
+  width: 100%;
+  padding: 16px;
+}
+
+.list-row {
+  display: grid;
+  grid-template-columns: 40px 1fr 2fr 80px 50px;
+  gap: 8px;
+  background: #1e293b;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  align-items: center;
+}
+
+.list-header {
+  background: #020617;
   font-weight: bold;
 }
 
-@media (max-width: 600px) {
-  .card img {
-    height: 240px;
+@media (max-width: 700px) {
+  .list-row {
+    grid-template-columns: 30px 1fr 80px 40px;
   }
+  .hide-mobile { display: none; }
 }
 </style>
 </head>
 
 <body>
-<div class="container">
-  <h1>📺 Daftar Anime Favorit</h1>
 
-  <div class="form">
-    <input id="title" placeholder="Judul Anime">
-    <input id="image" placeholder="Link Gambar (opsional)">
-    <input id="rating" type="number" step="0.1" min="0" max="10" placeholder="Rating (0 - 10)">
-    <button onclick="addAnime()">➕ Tambahkan Anime</button>
-  </div>
+<header>📺 Daftar Anime Saya</header>
 
-  <div class="actions">
-    <button class="export" onclick="exportList()">📤 Bagikan Daftar Anime</button>
-    <button class="import" onclick="openFile()">📥 Buka Daftar Anime</button>
-    <input type="file" id="fileInput" hidden>
-  </div>
+<div class="controls">
+  <input id="animeInput" placeholder="Masukkan judul anime">
+  <button class="add" onclick="addAnime()">➕ Tambah</button>
+  <button class="import" onclick="fileInput.click()">📥 Import</button>
+  <button class="share" onclick="exportJSON()">📤 Bagikan</button>
+  <button class="deleteAll" onclick="deleteAll()">🗑 Hapus Semua</button>
 
-  <div class="grid" id="list"></div>
+  <select class="view" onchange="changeView(this.value)">
+    <option value="card">📦 Card</option>
+    <option value="list">📄 List</option>
+  </select>
+
+  <input type="file" id="fileInput" hidden accept=".json" onchange="importJSON(event)">
 </div>
+
+<div id="container"></div>
 
 <script>
 let animeList = JSON.parse(localStorage.getItem("animeList")) || [];
+let viewMode = localStorage.getItem("viewMode") || "card";
+
+render();
+
+/* ===== ADD ANIME ===== */
+async function addAnime(fromImport) {
+  const input = document.getElementById("animeInput");
+  const title = fromImport || input.value.trim();
+  if (!title) return;
+  if (!fromImport) input.value = "";
+
+  const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`);
+  const json = await res.json();
+  if (!json.data?.length) return alert("Anime tidak ditemukan");
+
+  const a = json.data[0];
+  animeList.push({
+    title: a.title,
+    image: a.images?.jpg?.image_url || "",
+    genre: a.genres.map(g => g.name).join(", "),
+    rating: a.score || "N/A",
+    synopsis: a.synopsis || "Sinopsis tidak tersedia"
+  });
+
+  save();
+  render();
+}
+
+/* ===== RENDER ===== */
+function render() {
+  const c = document.getElementById("container");
+  c.innerHTML = "";
+
+  if (viewMode === "card") renderCard(c);
+  else renderList(c);
+}
+
+function renderCard(c) {
+  const grid = document.createElement("div");
+  grid.className = "grid";
+
+  animeList.forEach((a, i) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML = `
+      <span class="number">#${i + 1}</span>
+      <button class="delete" onclick="removeAnime(${i})">✖</button>
+      <img src="${a.image}">
+      <div class="content">
+        <h3>${a.title}</h3>
+        <div class="genre">${a.genre}</div>
+        <div class="rating">⭐ ${a.rating}</div>
+        <div class="synopsis">${a.synopsis}</div>
+      </div>`;
+    grid.appendChild(card);
+  });
+
+  c.appendChild(grid);
+}
+
+function renderList(c) {
+  const list = document.createElement("div");
+  list.className = "list";
+
+  list.innerHTML = `
+    <div class="list-row list-header">
+      <div>#</div>
+      <div>Judul</div>
+      <div class="hide-mobile">Genre</div>
+      <div>Rating</div>
+      <div></div>
+    </div>`;
+
+  animeList.forEach((a, i) => {
+    list.innerHTML += `
+      <div class="list-row">
+        <div>${i + 1}</div>
+        <div>${a.title}</div>
+        <div class="hide-mobile">${a.genre}</div>
+        <div>⭐ ${a.rating}</div>
+        <button class="delete" onclick="removeAnime(${i})">✖</button>
+      </div>`;
+  });
+
+  c.appendChild(list);
+}
+
+/* ===== ACTIONS ===== */
+function removeAnime(i) {
+  if (!confirm("Hapus anime ini?")) return;
+  animeList.splice(i, 1);
+  save();
+  render();
+}
+
+function deleteAll() {
+  if (!animeList.length) return alert("List kosong");
+  if (!confirm("Hapus SEMUA anime?")) return;
+  animeList = [];
+  save();
+  render();
+}
+
+function changeView(v) {
+  viewMode = v;
+  localStorage.setItem("viewMode", v);
+  render();
+}
 
 function save() {
   localStorage.setItem("animeList", JSON.stringify(animeList));
 }
 
-function render() {
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-  animeList.forEach(a => {
-    list.innerHTML += `
-      <div class="card">
-        <img src="${a.image || 'https://via.placeholder.com/300x400?text=No+Image'}">
-        <div class="info">
-          <strong>${a.title}</strong><br>
-          <span class="rating">⭐ ${a.rating || '-'}</span>
-        </div>
-      </div>
-    `;
-  });
-}
-
-function addAnime() {
-  const title = document.getElementById("title").value.trim();
-  if (!title) return alert("Judul wajib diisi");
-
-  animeList.push({
-    title,
-    image: document.getElementById("image").value,
-    rating: document.getElementById("rating").value
-  });
-
-  save();
-  render();
-
-  document.getElementById("title").value = "";
-  document.getElementById("image").value = "";
-  document.getElementById("rating").value = "";
-}
-
-function exportList() {
-  const blob = new Blob([JSON.stringify(animeList)], {type: "application/octet-stream"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "daftar-anime";
-  a.click();
-}
-
-function openFile() {
-  document.getElementById("fileInput").click();
-}
-
-document.getElementById("fileInput").addEventListener("change", e => {
+function importJSON(e) {
   const file = e.target.files[0];
   if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const data = JSON.parse(reader.result);
-      animeList = [...animeList, ...data];
-      save();
-      render();
-    } catch {
-      alert("File tidak valid");
+  const r = new FileReader();
+  r.onload = async () => {
+    for (const t of JSON.parse(r.result)) {
+      await addAnime(t);
+      await new Promise(r => setTimeout(r, 700));
     }
   };
-  reader.readAsText(file);
-});
+  r.readAsText(file);
+}
 
-render();
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(animeList, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "anime-list.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 </script>
+
 </body>
 </html>
+
 
