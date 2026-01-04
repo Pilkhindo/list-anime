@@ -42,36 +42,53 @@ nav button.active{background:#22c55e}
   gap:16px;padding:16px
 }
 .card{
-  background:#1e293b;border-radius:14px;overflow:hidden
+  background:#1e293b;border-radius:14px;overflow:hidden;
+  position:relative
+}
+.card-number{
+  position:absolute;top:10px;left:10px;
+  background:#22c55e;color:#020617;
+  padding:4px 8px;border-radius:8px;font-weight:bold
+}
+.favorite{
+  position:absolute;top:10px;right:10px;
+  cursor:pointer;font-size:22px
 }
 .card img{width:100%;height:340px;object-fit:cover}
 .card .info{padding:12px}
 .card .rating{color:#facc15;font-weight:bold}
+
+/* TAG */
+.tag{
+  display:inline-block;
+  background:#334155;
+  padding:4px 8px;
+  border-radius:8px;
+  font-size:12px;
+  margin-top:6px
+}
+
+/* SINOPSIS */
+.synopsis{
+  margin-top:8px;
+  max-height:80px;
+  overflow-y:auto;
+  font-size:14px;
+  color:#cbd5f5;
+  padding-right:4px
+}
+
 .card .actions{
-  display:flex;justify-content:flex-end;margin-top:8px
+  display:flex;justify-content:space-between;align-items:center;
+  margin-top:10px
 }
 .card .delete{
   background:#dc2626;border:none;color:white;
   padding:6px 10px;border-radius:6px;cursor:pointer
 }
-
-/* LIST */
-.list{padding:16px}
-.row{
-  display:grid;
-  grid-template-columns:40px 1fr 2fr 80px 60px;
-  gap:8px;background:#1e293b;
-  padding:12px;margin-bottom:8px;border-radius:10px
-}
-.row.header{background:#020617;font-weight:bold}
-.row button{
-  background:#dc2626;border:none;color:white;
-  padding:6px;border-radius:6px;cursor:pointer
-}
-
-@media(max-width:700px){
-  .row{grid-template-columns:30px 1fr 80px 60px}
-  .hide-mobile{display:none}
+select.tag-select{
+  background:#020617;color:white;border:none;
+  padding:6px;border-radius:6px
 }
 </style>
 </head>
@@ -87,12 +104,13 @@ nav button.active{background:#22c55e}
 </nav>
 
 <div class="controls">
-  <input id="search" placeholder="Cari anime (awal judul)..." oninput="render()">
+  <input id="search" placeholder="Cari anime..." oninput="render()">
 
   <select id="sort" onchange="render()">
     <option value="date">🕒 Terbaru</option>
     <option value="az">🔤 A-Z</option>
     <option value="rating">⭐ Rating</option>
+    <option value="fav">❤️ Favorit</option>
   </select>
 
   <select id="view" onchange="render()">
@@ -100,12 +118,13 @@ nav button.active{background:#22c55e}
     <option value="list">📄 List</option>
   </select>
 
+  <!-- HANYA UNTUK TAB ANIME SAYA -->
   <input id="titleInput" placeholder="Tambah anime baru">
   <button id="addBtn" class="add" onclick="addAnime()">➕ Tambah</button>
   <button id="clearBtn" class="clear" onclick="clearAll()">🗑 Hapus Semua</button>
 
   <button class="import" onclick="fileInput.click()">📥 Import</button>
-  <button class="export" onclick="exportJSON()">📤 Export</button>
+  <button id="exportBtn" class="export" onclick="exportJSON()">📤 Export</button>
 
   <input type="file" id="fileInput" hidden accept=".json" onchange="importJSON(event)">
 </div>
@@ -123,9 +142,12 @@ function switchTab(tab){
   myBtn.classList.toggle("active",tab==="my");
   sharedBtn.classList.toggle("active",tab==="shared");
 
-  titleInput.style.display=tab==="my"?"inline-block":"none";
-  addBtn.style.display=tab==="my"?"inline-block":"none";
-  clearBtn.style.display=tab==="my"?"inline-block":"none";
+  const show = tab==="my";
+  titleInput.style.display = show?"inline-block":"none";
+  addBtn.style.display = show?"inline-block":"none";
+  clearBtn.style.display = show?"inline-block":"none";
+  exportBtn.style.display = show?"inline-block":"none";
+
   render();
 }
 
@@ -133,90 +155,94 @@ function switchTab(tab){
 async function addAnime(){
   const title=titleInput.value.trim();
   if(!title)return;
-  titleInput.value="";
 
+  if(myAnime.some(a=>a.title.toLowerCase()===title.toLowerCase())){
+    alert("Anime sudah ada di daftar!");
+    return;
+  }
+
+  titleInput.value="";
   const res=await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(title)}&limit=1`);
   const json=await res.json();
   if(!json.data?.length)return alert("Anime tidak ditemukan");
 
   const a=json.data[0];
   myAnime.push({
+    id:crypto.randomUUID(),
     title:a.title,
     genre:a.genres.map(g=>g.name).join(", "),
     rating:a.score||0,
+    synopsis:a.synopsis||"Tidak ada sinopsis",
     image:a.images.jpg.image_url,
+    favorite:false,
+    tag:"Plan to Watch",
     date:Date.now()
   });
   save();render();
 }
 
-/* DELETE ONE */
-function deleteAnime(index){
-  if(!confirm("Hapus anime ini?"))return;
-  myAnime.splice(index,1);
+/* ACTIONS */
+function toggleFav(id){
+  const a=myAnime.find(x=>x.id===id);
+  a.favorite=!a.favorite;
   save();render();
 }
-
-/* LIST SOURCE */
-function getList(){
-  return currentTab==="my"?myAnime:sharedAnime;
+function changeTag(id,val){
+  const a=myAnime.find(x=>x.id===id);
+  a.tag=val;
+  save();render();
+}
+function deleteAnime(id){
+  if(!confirm("Hapus anime ini?"))return;
+  myAnime=myAnime.filter(a=>a.id!==id);
+  save();render();
 }
 
 /* RENDER */
 function render(){
-  let list=[...getList()];
+  let list=[...(currentTab==="my"?myAnime:sharedAnime)];
   const q=search.value.toLowerCase();
-  const sort=document.getElementById("sort").value;
-  const view=document.getElementById("view").value;
+  const s=sort.value;
+  const v=view.value;
 
-  if(q)list=list.filter(a=>a.title.toLowerCase().startsWith(q));
-  if(sort==="az")list.sort((a,b)=>a.title.localeCompare(b.title));
-  if(sort==="rating")list.sort((a,b)=>b.rating-a.rating);
-  if(sort==="date")list.sort((a,b)=>b.date-a.date);
+  if(q) list=list.filter(a=>a.title.toLowerCase().includes(q));
+  if(s==="az") list.sort((a,b)=>a.title.localeCompare(b.title));
+  if(s==="rating") list.sort((a,b)=>b.rating-a.rating);
+  if(s==="date") list.sort((a,b)=>b.date-a.date);
+  if(s==="fav") list.sort((a,b)=>b.favorite-a.favorite);
 
   container.innerHTML="";
 
-  if(view==="card"){
+  if(v==="card"){
     const g=document.createElement("div");
     g.className="grid";
     list.forEach((a,i)=>{
       g.innerHTML+=`
       <div class="card">
+        <div class="card-number">#${i+1}</div>
+        ${currentTab==="my"?`
+        <div class="favorite" onclick="toggleFav('${a.id}')">
+          ${a.favorite?"❤️":"🤍"}
+        </div>`:""}
         <img src="${a.image}">
         <div class="info">
           <h3>${a.title}</h3>
           <div>${a.genre}</div>
           <div class="rating">⭐ ${a.rating||"N/A"}</div>
+          <span class="tag">${a.tag}</span>
+          <div class="synopsis">${a.synopsis}</div>
           ${currentTab==="my"?`
           <div class="actions">
-            <button class="delete" onclick="deleteAnime(${i})">🗑</button>
+            <select class="tag-select" onchange="changeTag('${a.id}',this.value)">
+              ${["Watching","Completed","Plan to Watch"].map(t=>
+                `<option ${a.tag===t?"selected":""}>${t}</option>`).join("")}
+            </select>
+            <button class="delete" onclick="deleteAnime('${a.id}')">🗑</button>
           </div>`:""}
         </div>
       </div>`;
     });
     container.appendChild(g);
-  }else{
-    const l=document.createElement("div");
-    l.className="list";
-    l.innerHTML=`
-      <div class="row header">
-        <div>#</div>
-        <div>Judul</div>
-        <div class="hide-mobile">Genre</div>
-        <div>Rating</div>
-        ${currentTab==="my"?"<div>Aksi</div>":""}
-      </div>`;
-    list.forEach((a,i)=>{
-      l.innerHTML+=`
-      <div class="row">
-        <div>${i+1}</div>
-        <div>${a.title}</div>
-        <div class="hide-mobile">${a.genre}</div>
-        <div>⭐ ${a.rating||"N/A"}</div>
-        ${currentTab==="my"?`<button onclick="deleteAnime(${i})">🗑</button>`:""}
-      </div>`;
-    });
-    container.appendChild(l);
   }
 }
 
@@ -252,6 +278,8 @@ render();
 </script>
 </body>
 </html>
+
+
 
 
 
