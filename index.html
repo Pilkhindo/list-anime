@@ -64,8 +64,7 @@ nav button.active{background:#22c55e}
   background:#334155;
   padding:4px 8px;
   border-radius:8px;
-  font-size:12px;
-  margin-top:6px
+  font-size:12px
 }
 
 /* SINOPSIS */
@@ -74,8 +73,7 @@ nav button.active{background:#22c55e}
   max-height:80px;
   overflow-y:auto;
   font-size:14px;
-  color:#cbd5f5;
-  padding-right:4px
+  color:#cbd5f5
 }
 
 .card .actions{
@@ -89,6 +87,40 @@ nav button.active{background:#22c55e}
 select.tag-select{
   background:#020617;color:white;border:none;
   padding:6px;border-radius:6px
+}
+
+/* ===== LIST MODE (TANPA GAMBAR) ===== */
+.list{
+  padding:16px
+}
+.row{
+  display:grid;
+  grid-template-columns:40px 1.5fr 1fr 100px 120px 80px;
+  gap:10px;
+  align-items:center;
+  background:#1e293b;
+  padding:12px;
+  border-radius:10px;
+  margin-bottom:8px
+}
+.row.header{
+  background:#020617;
+  font-weight:bold
+}
+.row button{
+  background:#dc2626;
+  border:none;
+  color:white;
+  padding:6px;
+  border-radius:6px;
+  cursor:pointer
+}
+
+@media(max-width:800px){
+  .row{
+    grid-template-columns:30px 1fr 80px 80px
+  }
+  .hide-mobile{display:none}
 }
 </style>
 </head>
@@ -118,7 +150,6 @@ select.tag-select{
     <option value="list">📄 List</option>
   </select>
 
-  <!-- HANYA UNTUK TAB ANIME SAYA -->
   <input id="titleInput" placeholder="Tambah anime baru">
   <button id="addBtn" class="add" onclick="addAnime()">➕ Tambah</button>
   <button id="clearBtn" class="clear" onclick="clearAll()">🗑 Hapus Semua</button>
@@ -213,6 +244,7 @@ function render(){
 
   container.innerHTML="";
 
+  /* CARD MODE */
   if(v==="card"){
     const g=document.createElement("div");
     g.className="grid";
@@ -243,6 +275,34 @@ function render(){
       </div>`;
     });
     container.appendChild(g);
+  }
+
+  /* LIST MODE */
+  else{
+    const l=document.createElement("div");
+    l.className="list";
+    l.innerHTML=`
+      <div class="row header">
+        <div>#</div>
+        <div>Judul</div>
+        <div class="hide-mobile">Genre</div>
+        <div>Rating</div>
+        <div>Status</div>
+        ${currentTab==="my"?"<div>Aksi</div>":""}
+      </div>
+    `;
+    list.forEach((a,i)=>{
+      l.innerHTML+=`
+      <div class="row">
+        <div>${i+1}</div>
+        <div>${a.title} ${a.favorite?"❤️":""}</div>
+        <div class="hide-mobile">${a.genre}</div>
+        <div>⭐ ${a.rating||"N/A"}</div>
+        <div>${a.tag}</div>
+        ${currentTab==="my"?`<button onclick="deleteAnime('${a.id}')">🗑</button>`:""}
+      </div>`;
+    });
+    container.appendChild(l);
   }
 }
 
@@ -278,6 +338,8 @@ render();
 </script>
 </body>
 </html>
+
+
 
 
 
